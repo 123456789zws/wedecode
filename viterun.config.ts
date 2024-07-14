@@ -25,6 +25,8 @@ const external = [
   'jsdom',
   'glob',
   'inquirer',
+  'figlet',
+  'update-check',
 ]
 
 export default defineViteRunConfig({

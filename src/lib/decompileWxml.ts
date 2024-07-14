@@ -3,12 +3,8 @@
  * 本段代码引用自 https://github.com/qwerty472123/wxappUnpacker ,并做了一定修改优化
  * */
 
-import path from "node:path";
 import esprima from "esprima";
 import escodegen from "escodegen";
-import colors from "picocolors";
-import {printLog} from "../common";
-import {DecompilationMicroApp} from "../decompilation";
 
 function analyze(core: any, z: any, namePool: Record<any, any>, xPool: Record<any, any>, fakePool = {}, zMulName = "0") {
   function anaRecursion(core: any, fakePool = {}) {
@@ -20,6 +16,7 @@ function analyze(core: any, z: any, namePool: Record<any, any>, xPool: Record<an
   }
 
   function pushSon(pname: string, son: any) {
+    // console.log(pname, son)
     if (fakePool[pname]) fakePool[pname].son.push(son);
     else namePool[pname].son.push(son);
   }
@@ -38,7 +35,7 @@ function analyze(core: any, z: any, namePool: Record<any, any>, xPool: Record<an
               case "_rz":
                 namePool[f.arguments[1].name].v[f.arguments[2].value] = z[zMulName][f.arguments[3].value];
                 break;
-              case "_":
+              case "_":   // 标签属性
                 pushSon(f.arguments[0].name, namePool[f.arguments[1].name]);
                 break;
               case "_2": {
@@ -112,7 +109,11 @@ function analyze(core: any, z: any, namePool: Record<any, any>, xPool: Record<an
           if (dec.init.type == "CallExpression") {
             switch (dec.init.callee.name) {
               case "_n":
-                push(dec.id.name, {tag: dec.init.arguments[0].value, son: [], v: {}});
+                let tagName = dec.init.arguments[0].value
+                if (['wx-scope'].includes(tagName)) {
+                  tagName = 'view'
+                }
+                push(dec.id.name, {tag: tagName, son: [], v: {}});
                 break;
               case "_v":
                 push(dec.id.name, {tag: "block", son: [], v: {}});
@@ -190,6 +191,10 @@ function analyze(core: any, z: any, namePool: Record<any, any>, xPool: Record<an
                       if (f.init.type == "LogicalExpression" && f.init.left.type == "CallExpression") {
                         if (f.init.left.callee.name == "_1") data = z[f.init.left.arguments[0].value];
                         else if (f.init.left.callee.name == "_1z") data = z[zMulName][f.init.left.arguments[1].value];
+                        if (data.startsWith('{{({') && data.endsWith('})}}')) {
+                          // 将在 getZ 的 scope 函数中为普通对象定义的表达式解析恢复为双括号，因为 template标签 中可以直接在{{}} 中放置对象， 无需再使用() 包裹  
+                          data = `{{${data.substring(4, data.length - 4)}}}`
+                        }
                       }
                     }
                   } else if (e.type == "ExpressionStatement") {
@@ -331,11 +336,11 @@ function elemToString(elem: Record<any, any>, dep: any) {
   return trimMerge(rets);
 }
 
-function getDecompiledWxml(state: any, code: string, z: {}, rDs: any) {
+function getDecompiledWxml(state: any, code: string, z: {}, rDs: any, xPool: string[]) {
   let rName = code.slice(code.lastIndexOf("return") + 6).replace(/[\;\}]/g, "").trim();
   code = code.slice(code.indexOf("\n"), code.lastIndexOf("return")).trim();
   let r = {son: []};
-  analyze(esprima.parseScript(code).body, z, {[rName]: r}, {[rName]: r}, {[rName]: r});
+  analyze(esprima.parseScript(code).body, z, {[rName]: r}, xPool, {[rName]: r});
   let ans = [];
   for (let elem of r.son) ans.push(elemToString(elem, 0));
   let result = [ans.join("")];
@@ -358,9 +363,9 @@ function getDecompiledWxml(state: any, code: string, z: {}, rDs: any) {
   return result.join("")
 }
 
-export function tryDecompileWxml(code: string, z: Record<string, any[]>, rDs: any): string {
+export function tryDecompileWxml(code: string, z: Record<string, any[]>, define: any, xPool: string[]): string {
   try {
-    return getDecompiledWxml([null], code, z, rDs)
+    return getDecompiledWxml([null], code, z, define, xPool)
   } catch (e) {
     return ''
   }

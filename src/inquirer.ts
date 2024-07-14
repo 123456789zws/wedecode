@@ -1,5 +1,4 @@
 import inquirer from "inquirer";
-import fs from 'node:fs'
 import colors from "picocolors";
 import path from "node:path";
 import {checkExistsWithFilePath} from "./common";
@@ -23,10 +22,9 @@ const prompts = {
         // },
         {
           type: 'waitUserInput',
-          message: `${colors.blue('[自动判断单包或分包] ')} - 粘贴反编译的 '文件' 或 '目录'  路径: `,
+          message: `wxapkg 文件' 或 '目录' 路径, 默认当前所在整个目录: `,
           name: 'inputPath',
           validate(input: any, _): any {
-            if (!input) return false
             return checkExistsWithFilePath(path.resolve(input),{throw:true});
           },
         },

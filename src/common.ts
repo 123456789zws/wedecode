@@ -5,11 +5,10 @@ import fs from "node:fs";
 import colors from "picocolors";
 import JS from 'js-beautify'
 
-export function getPathInfo(dir: string, outputDir: string) {
-  const outputFolderName = path.basename(dir).replace(path.extname(dir), '')
-  let _packRootPath = path.resolve(path.dirname(dir), outputFolderName)
+export function getPathInfo(outputDir: string) {
+  let _packRootPath = outputDir
   const resolve = (_new_resolve_path: string, ...args: string[]): string => {
-    return path.resolve(_packRootPath, _new_resolve_path, ...args)
+    return path.resolve(outputDir, _packRootPath, _new_resolve_path, ...args)
   }
   const outputResolve = (_new_resolve_path: string, ...args: string[]): string => {
     return path.resolve(outputDir, _new_resolve_path, ...args)
@@ -18,9 +17,6 @@ export function getPathInfo(dir: string, outputDir: string) {
     /** 相对当前包作为根路径路径进行解析 */
     resolve,
     outputResolve,
-    inputPackName: path.basename(dir).replace(path.extname(dir), ''),
-    inputDirPath: path.dirname(dir),
-    inputFilePath: dir,
     outputPath: outputDir,
     setPackRootPath(rootPath: string) {
       _packRootPath = rootPath
@@ -29,31 +25,40 @@ export function getPathInfo(dir: string, outputDir: string) {
       return _packRootPath
     },
     get appJsonPath() {
-      return resolve(_packRootPath, 'app.json')
+      return resolve('app.json')
     },
     get appConfigJsonPath() {
-      return resolve(_packRootPath, 'app-config.json')
+      return resolve('app-config.json')
     },
     get appWxssPath() {
-      return resolve(_packRootPath, 'app-wxss.js')
+      return resolve('app-wxss.js')
     },
     get workersPath() {
-      return resolve(_packRootPath, 'workers.js')
+      return resolve('workers.js')
     },
     get pageFramePath() {
-      return resolve(_packRootPath, 'page-frame.js')
+      return resolve('page-frame.js')
+    },
+    get pageFrameHtmlPath() {
+      return resolve('page-frame.html')
     },
     get appJsPath() {
-      return resolve(_packRootPath, 'app.js')
+      return resolve('app.js')
     },
     get appServicePath() {
-      return resolve(_packRootPath, 'app-service.js')
+      return resolve('app-service.js')
+    },
+    get gameJsPath() {
+      return resolve('game.js')
+    },
+    get gameJsonPath() {
+      return resolve('game.json')
     },
   }
 }
 
 export function jsBeautify(code: string) {
-  return JS.js_beautify(code)
+  return JS.js_beautify(code, {indent_size: 2})
 }
 
 /** 深度遍历 */
@@ -139,9 +144,8 @@ export function commonDir(pathA: string, pathB: string) {
 }
 
 export function replaceExt(name: string, ext = "") {
-  const lastIndex = name.lastIndexOf(".")
-  const firstIndex = name.startsWith('.') ? 0 : name.indexOf(".")
-  return firstIndex === lastIndex ? `${name}${ext}` : name.slice(0, name.lastIndexOf(".")) + ext;
+  const hasSuffix = name.lastIndexOf(".") > 2   // x.x
+  return hasSuffix ? name.slice(0, name.lastIndexOf(".")) + ext : `${name}${ext}`
 }
 
 export function sleep(time: number) {
@@ -167,4 +171,24 @@ export function checkExistsWithFilePath(path: string, opt: { throw?: boolean } =
     return false
   }
   return true
+}
+
+export function removeVM2ExceptionLine(code: string) {
+  const reg = /\s*[a-z]\x20?=\x20?VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL\.handleException\([a-z]\);?/g
+  return code.replace(reg, '')
+}
+
+/** 获取共同的最短根路径 */
+export function findCommonRoot(paths: string[]) {
+  const splitPaths = paths.map(path => path.split('/').filter(Boolean));
+  const commonRoot = [];
+  for (let i = 0; i < splitPaths[0].length; i++) {
+    const partsMatch = splitPaths.every(path => path[i] === splitPaths[0][i]);
+    if (partsMatch) {
+      commonRoot.push(splitPaths[0][i]);
+    } else {
+      break;
+    }
+  }
+  return commonRoot.join('/')
 }

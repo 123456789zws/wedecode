@@ -4,12 +4,31 @@ function restoreSingle(ops: any, withScope = false) {
   if (typeof ops == "undefined") return "";
 
   function scope(value: string) {
-    if (value.startsWith('{') && value.endsWith('}')) return withScope ? value : "{" + value + "}";
+    if (value.startsWith('{') && value.endsWith('}')) return withScope ? value : "{{(" + value + ")}}";
     return withScope ? value : "{{" + value + "}}";
   }
-
+  // function scope(value: string) {
+  //   const isObject = value.startsWith('{') && value.endsWith('}')
+  //   const hasPureVariableObj = isObject && !(value.includes('"') || value.includes("'")) && value.includes(':') // 是否是纯变量对象，比如不包含 "" 字符串等对象 
+  //   console.log(hasPureVariableObj, value)
+  //   if (isObject) {
+  //     value = value.replace('"', '"')
+  //     if (!hasPureVariableObj) return withScope ? value : "{{(" + value + ")}}";  // 符合变量对象
+  //     else return withScope ? value : "{" + value + "}";    // 纯变量对象
+  //   }
+  //   return withScope ? value : "{{" + value + "}}";   // 其他表达式
+  // }
   function enBrace(value: string, type = '{') {
-    if (value.startsWith('{') || value.startsWith('[') || value.startsWith('(') || value.endsWith('}') || value.endsWith(']') || value.endsWith(')')) value = ' ' + value + ' ';
+    if (value.startsWith('{') ||
+      value.startsWith('[') ||
+      value.startsWith('(') ||
+      value.endsWith('}') ||
+      value.endsWith(']') ||
+      value.endsWith(')')
+    ) {
+      value = ' ' + value + ' '
+    }
+    // console.log(type, value)
     switch (type) {
       case '{':
         return '{' + value + '}';
@@ -57,7 +76,8 @@ function restoreSingle(ops: any, withScope = false) {
       case 3://string
         return ops[1];//may cause problems if wx use it to be string
       case 1://direct value
-        return scope(jsoToWxOn(ops[1]));
+        const val = jsoToWxOn(ops[1])
+        return scope(val);
       case 11://values list, According to var a = 11;
         let ans = "";
         ops.shift();
@@ -120,7 +140,7 @@ function restoreSingle(ops: any, withScope = false) {
             if (ops.length !== 3) {
               ans = op[1] + getOp(1);
               break;
-            }//shoud not add more in there![fall through]
+            }//should not add more in there![fall through] 
           default:
             ans = getOp(1) + op[1] + getOp(2);
         }
@@ -221,6 +241,7 @@ function restoreSingle(ops: any, withScope = false) {
       default:
         ans = enBrace("__unkownSpecific:" + jsoToWxOn(ops), '{');
     }
+    // console.log(ans)
     return scope(<string>ans);
   }
 }
@@ -228,12 +249,13 @@ function restoreSingle(ops: any, withScope = false) {
 function catchZ(code: string, cb: Function) {
   const reg = /function\s+gz\$gwx(\w+)\(\)\{(?:.|\n)*?;return\s+__WXML_GLOBAL__\.ops_cached\.\$gwx[\w\n]+}/g
   const allGwxFunctionMatch = code.match(reg)
+  // console.log(allGwxFunctionMatch)
   const allFunctionMap = {}
   const z = {}
   const vm = DecompilationMicroApp.createVM({
     sandbox: {__WXML_GLOBAL__: {ops_cached: {}}}
   })
-  if (allGwxFunctionMatch){
+  if (allGwxFunctionMatch) {
     allGwxFunctionMatch.forEach(funcString => {  // 提取出所有的Z生成函数及其对应gwx函数名称
       const funcReg = /function\s+gz\$gwx(\w*)\(\)/g
       const found = funcReg.exec(funcString)
