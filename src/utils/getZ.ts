@@ -1,23 +1,37 @@
-import {DecompilationMicroApp} from "../decompilation";
+import {createVM} from "./createVM";
+
+function parseParenthesesTyping(str: string): 'single' | 'double' | 'multiple' {
+  str = str.trim()
+  const sameObject = str.startsWith('{') && str.endsWith('}')
+  const sameArray = str.startsWith('[') && str.endsWith(']')
+  const hasSpreading = (sameArray || sameObject) && str.includes('...')
+  if (sameObject &&
+    !hasSpreading &&
+    str.split(':').length === 2
+  ) {
+    // {uuid:uuid}
+    return 'single'
+  } else if (sameObject || sameArray) {
+    // {uuid:uuid, ...val}
+    return 'multiple'
+  } else {
+    return 'double'
+  }
+}
 
 function restoreSingle(ops: any, withScope = false) {
   if (typeof ops == "undefined") return "";
 
   function scope(value: string) {
-    if (value.startsWith('{') && value.endsWith('}')) return withScope ? value : "{{(" + value + ")}}";
-    return withScope ? value : "{{" + value + "}}";
+    if (withScope) return value;
+    // const typing = parseParenthesesTyping(value);
+    // if (typing === 'single') return "{" + value + "}";
+    // else if (typing === 'multiple') return "{{(" + value + ")}}";
+    // else return "{{" + value + "}}";
+    if (value.startsWith('{') && value.endsWith('}')) return "{{(" + value + ")}}";
+    return "{{" + value + "}}";
   }
-  // function scope(value: string) {
-  //   const isObject = value.startsWith('{') && value.endsWith('}')
-  //   const hasPureVariableObj = isObject && !(value.includes('"') || value.includes("'")) && value.includes(':') // 是否是纯变量对象，比如不包含 "" 字符串等对象 
-  //   console.log(hasPureVariableObj, value)
-  //   if (isObject) {
-  //     value = value.replace('"', '"')
-  //     if (!hasPureVariableObj) return withScope ? value : "{{(" + value + ")}}";  // 符合变量对象
-  //     else return withScope ? value : "{" + value + "}";    // 纯变量对象
-  //   }
-  //   return withScope ? value : "{{" + value + "}}";   // 其他表达式
-  // }
+
   function enBrace(value: string, type = '{') {
     if (value.startsWith('{') ||
       value.startsWith('[') ||
@@ -41,11 +55,11 @@ function restoreSingle(ops: any, withScope = false) {
     }
   }
 
-  function restoreNext(ops, w = withScope) {
+  function restoreNext(ops: any, w = withScope) {
     return restoreSingle(ops, w);
   }
 
-  function jsoToWxOn(obj) {//convert JS Object to WeChat Object Notation(No quotes@key+str)
+  function jsoToWxOn(obj: any) {//convert JS Object to WeChat Object Notation(No quotes@key+str)
     let ans = "";
     if (typeof obj === "undefined") {
       return 'undefined';
@@ -146,10 +160,10 @@ function restoreSingle(ops: any, withScope = false) {
         }
         break;
       }
-      case 4://unkown-arrayStart?
+      case 4: // unkown-arrayStart? 将操作符下 数组 拼接数组成字符串形式
         ans = restoreNext(ops[1], true);
         break;
-      case 5://merge-array
+      case 5: // merge-array
       {
         switch (ops.length) {
           case 2:
@@ -178,9 +192,9 @@ function restoreSingle(ops: any, withScope = false) {
       case 6://get value of an object
       {
         let sonName = restoreNext(ops[2], true);
-        if (sonName._type === "var")
+        if (sonName._type === "var") {
           ans = restoreNext(ops[1], true) + enBrace(sonName, '[');
-        else {
+        } else {
           let attach = "";
           if (/^[A-Za-z\_][A-Za-z\d\_]*$/.test(sonName)/*is a qualified id*/)
             attach = '.' + sonName;
@@ -249,25 +263,29 @@ function restoreSingle(ops: any, withScope = false) {
 function catchZ(code: string, cb: Function) {
   const reg = /function\s+gz\$gwx(\w+)\(\)\{(?:.|\n)*?;return\s+__WXML_GLOBAL__\.ops_cached\.\$gwx[\w\n]+}/g
   const allGwxFunctionMatch = code.match(reg)
-  // console.log(allGwxFunctionMatch)
+  if (!allGwxFunctionMatch) return
   const allFunctionMap = {}
-  const z = {}
-  const vm = DecompilationMicroApp.createVM({
+  const zObject = {}
+  const vm = createVM({
     sandbox: {__WXML_GLOBAL__: {ops_cached: {}}}
   })
-  if (allGwxFunctionMatch) {
-    allGwxFunctionMatch.forEach(funcString => {  // 提取出所有的Z生成函数及其对应gwx函数名称
-      const funcReg = /function\s+gz\$gwx(\w*)\(\)/g
-      const found = funcReg.exec(funcString)
-      vm.run(funcString)
-      const hookZFunc = vm.sandbox[`gz$gwx${found[1]}`]
-      if (hookZFunc) {
-        allFunctionMap[found[1]] = hookZFunc
-        z[found[1]] = hookZFunc()
-      }
-    })
-  }
-  cb(z);
+  allGwxFunctionMatch.forEach(funcString => {  // 提取出所有的Z生成函数及其对应gwx函数名称
+    const funcReg = /function\s+gz\$gwx(\w*)\(\)/g
+    const funcName = funcReg.exec(funcString)?.[1]
+    if (!funcName) return
+    vm.run(funcString)
+    const hookZFunc = vm.sandbox[`gz$gwx${funcName}`]
+    if (hookZFunc) {
+      allFunctionMap[funcName] = hookZFunc
+      zObject[funcName] = hookZFunc()
+      zObject[funcName] = zObject[funcName]
+        .map((data: any) => {
+          if (Array.isArray(data) && data[0] === '11182016' && Array.isArray(data[1])) return data[1]
+          return data;
+        })
+    }
+  })
+  cb(zObject);
 }
 
 export function getZ(code: string, cb: Function) {

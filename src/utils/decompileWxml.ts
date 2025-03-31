@@ -133,8 +133,9 @@ function analyze(core: any, z: any, namePool: Record<any, any>, xPool: Record<an
                 });
                 break;
               case "_m": {
-                if (dec.init.arguments[2].elements.length > 0)
+                if (dec.init.arguments[2].elements.length > 0) {
                   throw Error("Noticable generics content: " + dec.init.arguments[2].toString());
+                }
                 let mv = {};
                 let name = null, base = 0;
                 for (let x of dec.init.arguments[1].elements) {
@@ -157,8 +158,9 @@ function analyze(core: any, z: any, namePool: Record<any, any>, xPool: Record<an
               }
                 break;
               case "_mz": {
-                if (dec.init.arguments[3].elements.length > 0)
+                if (dec.init.arguments[3].elements.length > 0) {
                   throw Error("Noticable generics content: " + dec.init.arguments[3].toString());
+                }
                 let mv = {};
                 let name = null, base = 0;
                 for (let x of dec.init.arguments[2].elements) {
@@ -301,8 +303,10 @@ function elemToString(elem: Record<any, any>, dep: any) {
 
   if (isTextTag(elem)) {
     //In comment, you can use typify text node, which beautify its code, but may destroy ui.
-    //So, we use a "hack" way to solve this problem by letting typify program stop when face textNode
-    let str = new String(wxmlify(elem.content, true));
+    //So, we use a "hack" way to solve this problem by letting typify program stop when face textNode\
+    const StringC = String;
+    String()
+    let str = new StringC(wxmlify(elem.content, true));
     str['textNode'] = 1;
     return wxmlify(str, true);//indent.repeat(dep)+wxmlify(elem.content.trim(),true)+"\n";
   }
@@ -324,7 +328,18 @@ function elemToString(elem: Record<any, any>, dep: any) {
     }
   }
   let ret = indent.repeat(dep) + "<" + elem.tag;
-  for (let v in elem.v) ret += " " + v + (elem.v[v] !== null ? "=\"" + wxmlify(elem.v[v]) + "\"" : "");
+  for (let attr in elem.v) {
+    if (attr.toString().trim().startsWith("wx:") && typeof elem.v[attr] == "string") {
+      if (elem.v[attr].startsWith("{{({") && elem.v[attr].endsWith("})}}")) {
+        const data = elem.v[attr].slice(4, elem.v[attr].length - 4)
+        if (!data.includes(",") && data.split(":").length == 2) {
+          // example {{uuid:uuid}}
+          elem.v[attr] = `{{${data}}}`;
+        }
+      }
+    }
+    ret += " " + attr + (elem.v[attr] !== null ? "=\"" + wxmlify(elem.v[attr]) + "\"" : "");
+  }
   if (elem.son.length == 0) {
     if (longerList.includes(elem.tag)) return ret + " />\n";
     else return ret + "></" + elem.tag + ">\n";
@@ -363,10 +378,11 @@ function getDecompiledWxml(state: any, code: string, z: {}, rDs: any, xPool: str
   return result.join("")
 }
 
-export function tryDecompileWxml(code: string, z: Record<string, any[]>, define: any, xPool: string[]): string {
+export function tryDecompileWxml(fCode: string, z: Record<string, any[]>, define: any, xPool: string[]): string {
   try {
-    return getDecompiledWxml([null], code, z, define, xPool)
+    return getDecompiledWxml([null], fCode, z, define, xPool)
   } catch (e) {
+    console.log('[tryDecompileWxml]', e.message)
     return ''
   }
 }

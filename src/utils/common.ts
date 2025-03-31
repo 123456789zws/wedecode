@@ -1,34 +1,43 @@
 import path from "node:path";
 import process from "node:process";
 import {stdout as slog} from 'single-line-log'
-import fs from "node:fs";
-import colors from "picocolors";
 import JS from 'js-beautify'
+import {isDev} from "@/bin/wedecode/enum";
 
-export function getPathInfo(outputDir: string) {
+export function getPathResolveInfo(outputDir: string) {
   let _packRootPath = outputDir
-  const resolve = (_new_resolve_path: string, ...args: string[]): string => {
+  const resolve = (_new_resolve_path: string = './', ...args: string[]): string => {
     return path.resolve(outputDir, _packRootPath, _new_resolve_path, ...args)
   }
-  const outputResolve = (_new_resolve_path: string, ...args: string[]): string => {
+  const outputResolve = (_new_resolve_path: string = './', ...args: string[]): string => {
     return path.resolve(outputDir, _new_resolve_path, ...args)
   }
   return {
-    /** 相对当前包作为根路径路径进行解析 */
+    /** 相对当前包( 子包， 主包， 插件包都算当前路径 )作为根路径路径进行解析 */
     resolve,
+    /** 相对当前主包路径进行解析 */
     outputResolve,
     outputPath: outputDir,
+    join(_path: string) {
+      return path.join(_packRootPath, _path)
+    },
     setPackRootPath(rootPath: string) {
       _packRootPath = rootPath
     },
+    /**
+     * 当前的包根路径， 主包为 ./ , 分包为相对主包根的相对路径
+     * */
     get packRootPath() {
-      return _packRootPath
+      return _packRootPath === outputDir ? './' : _packRootPath
     },
     get appJsonPath() {
       return resolve('app.json')
     },
     get appConfigJsonPath() {
       return resolve('app-config.json')
+    },
+    get projectPrivateConfigJsonPath() {
+      return resolve('project.private.config.json')
     },
     get appWxssPath() {
       return resolve('app-wxss.js')
@@ -48,11 +57,17 @@ export function getPathInfo(outputDir: string) {
     get appServicePath() {
       return resolve('app-service.js')
     },
-    get gameJsPath() {
-      return resolve('game.js')
+    get appServiceAppPath() {
+      return resolve('appservice.app.js')
     },
     get gameJsonPath() {
       return resolve('game.json')
+    },
+    get gameJsPath() {
+      return resolve('game.js')
+    },
+    get subContextJsPath() {
+      return resolve('subContext.js')
     },
   }
 }
@@ -86,6 +101,13 @@ export function limitPush(arr: any[], data: any, limit = 10) {
   arr.push(data)
 }
 
+const openStreamLog = false
+const excludesLogMatch = isDev
+  ? [
+    'Completed'
+  ]
+  : []
+
 export function printLog(log: string, opt: {
   isStart?: boolean,
   isEnd?: boolean,
@@ -97,6 +119,11 @@ export function printLog(log: string, opt: {
   nativeOnly?: boolean,
   interceptor?: (log: string) => any
 } = {}) {
+  if (excludesLogMatch.some(item => log.includes(item))) return;
+  if (!openStreamLog) {
+    console.log(log)
+    return;
+  }
   if (!log || !log.trim()) return
   if (opt.interceptor) printLog['interceptor'] = opt.interceptor
   if (opt.space1) printLog['space1'] = opt.space1
@@ -128,6 +155,19 @@ export function printLog(log: string, opt: {
   slog(log)
 }
 
+/**
+ * 从数组中移除某个值
+ * */
+export function removeElement<T extends any>(arr: T[], elementToRemove: T): void {
+  const index = arr.indexOf(elementToRemove);
+  if (index > -1) {
+    arr.splice(index, 1);
+  }
+}
+
+/**
+ * 获取公共的最长目录
+ * */
 export function commonDir(pathA: string, pathB: string) {
   if (pathA[0] === ".") pathA = pathA.slice(1);
   if (pathB[0] === ".") pathB = pathB.slice(1);
@@ -165,17 +205,13 @@ export function arrayDeduplication<T extends any>(arr: T[], cb?: (pre: T[], cur:
   }, [])
 }
 
-export function checkExistsWithFilePath(path: string, opt: { throw?: boolean } = {}): boolean {
-  if (!fs.existsSync(path)) {
-    opt.throw && console.log(`\n${colors.red('\u274C   文件或目录不存在, 请检查!')}`)
-    return false
-  }
-  return true
-}
-
 export function removeVM2ExceptionLine(code: string) {
   const reg = /\s*[a-z]\x20?=\x20?VM2_INTERNAL_STATE_DO_NOT_USE_OR_PROGRAM_WILL_FAIL\.handleException\([a-z]\);?/g
   return code.replace(reg, '')
+}
+
+export function resetWxsRequirePath(p: string, resetString: string = '') {
+  return p.replaceAll('p_./', resetString).replaceAll('m_./', resetString)
 }
 
 /** 获取共同的最短根路径 */
@@ -191,4 +227,38 @@ export function findCommonRoot(paths: string[]) {
     }
   }
   return commonRoot.join('/')
+}
+
+export function isPluginPath(path: string) {
+  return path.startsWith('plugin-private://') || path.startsWith('plugin://')
+}
+
+export function resetPluginPath(_path: string, prefixDir: string | null | void) {
+  return path.join(
+    prefixDir || './',
+    _path.replaceAll('plugin-private://', '').replaceAll('plugin://', ''),
+  )
+}
+
+/**
+ * 获取某个函数的入参定义的名称
+ * */
+export function getParameterNames(fn: Function) {
+  if (typeof fn !== 'function') return [];
+  const COMMENTS = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
+  const code = fn.toString().replace(COMMENTS, '');
+  const result = code.slice(code.indexOf('(') + 1, code.indexOf(')'))
+    .match(/([^\s,]+)/g);
+  return result === null
+    ? []
+    : result;
+}
+
+/**
+ * 判断是否是wx 的 appid
+ * */
+export function isWxAppid(str: string) {
+  const reg = /^wx[0-9a-f]{16}$/i
+  str = str.trim()
+  return str.length === 18 && reg.test(str)
 }
