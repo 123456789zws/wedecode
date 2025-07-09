@@ -1,11 +1,9 @@
 import colors from "picocolors";
 import path from "node:path";
-import {glob} from "glob";
 import fs from "node:fs";
-import {PloyFill} from "./PloyFill";
-import {removeAppFileList, removeGameFileList} from "@/constant";
-import {createVM} from "@/utils/createVM";
-import {deleteLocalFile, readLocalFile, saveLocalFile} from "@/utils/fs-process";
+import {PloyFillCover} from "./ployfill-cover";
+import {createVM, runVmCode} from "@/utils/create-vm";
+import {readLocalFile, saveLocalFile} from "@/utils/fs-process";
 import {
   AppTypeMapping,
   MiniAppType,
@@ -15,7 +13,6 @@ import {
   UnPackInfo
 } from "@/type";
 import {commonDir, jsBeautify, printLog, removeVM2ExceptionLine, sleep} from "@/utils/common";
-import {deepmerge} from "@biggerstar/deepmerge";
 
 export class BaseDecompilation {
   public readonly pathInfo: PathResolveInfo
@@ -23,7 +20,7 @@ export class BaseDecompilation {
   public readonly packPath: string
   public readonly packType: MiniPackType
   public readonly appType: MiniAppType
-  public readonly ployFill: PloyFill
+  public readonly ployFill: PloyFillCover
 
   constructor(packInfo: UnPackInfo) {
     this.pathInfo = packInfo.pathInfo
@@ -31,7 +28,7 @@ export class BaseDecompilation {
     this.packPath = packInfo.inputPath
     this.packType = packInfo.packType
     this.appType = packInfo.appType
-    this.ployFill = new PloyFill(this.packPath)
+    this.ployFill = new PloyFillCover(this.packPath)
   }
 
   protected async decompileAppWorker(): Promise<any> {
@@ -53,7 +50,7 @@ export class BaseDecompilation {
         }
       }
     })
-    vm.run(code.slice(code.indexOf("define(")));
+    runVmCode(vm, code.slice(code.indexOf("define(")))
     if (commPath.length > 0) commPath = commPath.slice(0, -1);
     printLog(`Worker path:  ${commPath}`);
     appConfig.workers = commPath
@@ -82,7 +79,7 @@ export class BaseDecompilation {
         }
       }
     })
-    vm.run(code);
+    runVmCode(vm, code)
     printLog(`Worker path:  ${commPath}`);
 
     if (commPath) {
@@ -123,14 +120,12 @@ export class BaseDecompilation {
       code = code.replaceAll('require("@babel', 'require("./@babel')
       resultCode = jsBeautify(code.trim());
     }
-    if (resultCode.trim()) {
-      saveLocalFile(
-        this.pathInfo.outputResolve(name),
-        removeVM2ExceptionLine(resultCode),
-        {force: true}
-      )
-      printLog(" Completed " + ` (${resultCode.length}) \t` + colors.bold(colors.gray(name)))
-    }
+    saveLocalFile(
+      this.pathInfo.outputResolve(name),
+      removeVM2ExceptionLine(resultCode.trim()),
+      {force: true}
+    )
+    printLog(" Completed " + ` (${resultCode.length}) \t` + colors.bold(colors.gray(name)))
   }
 
 }

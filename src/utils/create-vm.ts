@@ -1,7 +1,7 @@
-import {VM, VMOptions} from "vm2";
-import {JSDOM} from "jsdom";
-import {deepmerge} from "@biggerstar/deepmerge";
-import {createWxFakeDom} from "./wx-dom";
+import { VM, VMOptions } from "vm2";
+import { JSDOM } from "jsdom";
+import { deepmerge } from "@biggerstar/deepmerge";
+import { createWxFakeDom } from "./wx-dom";
 
 export function createVM(vmOptions: VMOptions = {}) {
   const domBaseHtml = `<!DOCTYPE html><html lang="en"><head><title>''</title></head><body></body></html>`
@@ -18,8 +18,8 @@ export function createVM(vmOptions: VMOptions = {}) {
   return new VM(deepmerge({
     sandbox: {
       ...createWxFakeDom(),
-      setInterval: ()=> null,
-      setTimeout: ()=> null,
+      setInterval: () => null,
+      setTimeout: () => null,
       window: vm_window,
       location: dom.window.location,
       navigator: vm_navigator,
@@ -39,10 +39,20 @@ export function createVM(vmOptions: VMOptions = {}) {
         setRuntimeGlobals: () => void 0,
         addComponentStaticConfig: () => void 0,
         setStyleScope: () => void 0,
+        enableCodeChunk: () => void 0,
+        initializeCodeChunk: () => void 0,
         addTemplateDependencies: () => void 0,
         batchAddCompiledScripts: () => void 0,
         batchAddCompiledTemplate: () => void 0,
       },
     }
   }, vmOptions));
+}
+
+export function runVmCode(vm: VM, code: string) {
+  try {
+    vm.run(code)
+  } catch (e) {
+    console.log(e.message)
+  }
 }

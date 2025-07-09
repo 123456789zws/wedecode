@@ -1,10 +1,10 @@
 import colors from "picocolors";
 import {saveLocalFile} from "@/utils/fs-process";
-import {createVM} from "@/utils/createVM";
+import {createVM, runVmCode} from "@/utils/create-vm";
 import {printLog, sleep} from "@/utils/common";
 import {GameCodeInfo, UnPackInfo} from "@/type";
-import {BaseDecompilation} from "@/interface/BaseDecompilation";
-import {getGamePackCodeInfo} from "@/utils/getPackCodeInfo";
+import {BaseDecompilation} from "@/interface/base-decompilation";
+import {getGamePackCodeInfo} from "@/utils/get-pack-codeInfo";
 import {GameJsonExcludeKeys} from "@/constant";
 
 /**
@@ -75,7 +75,7 @@ export class GameDecompilation extends BaseDecompilation {
       const vm = createVM({sandbox})
       if (!code.includes('define(') || !code.includes('function(require, module, exports)')) return
       try {
-        vm.run(code)
+        runVmCode(vm, code)
       } catch (e) {
         console.log(e.message)
       }
